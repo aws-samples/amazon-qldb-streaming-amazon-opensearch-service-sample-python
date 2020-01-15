@@ -166,6 +166,7 @@ Resources:
       CodeUri: src
       Handler: qldb_streaming_to_es_sample.app.lambda_handler
       Runtime: python3.7
+      Timeout: 900
       Role: !GetAtt RegistrationIndexerLambdaRole.Arn
       Events:
         Stream:
@@ -219,7 +220,7 @@ Resources:
                   - Arn
             Action: es:ESHttp*
             Resource:
-              Fn::Sub: arn:aws:es:${AWS::Region}:${AWS::AccountId}:domain/tesing-qldb-streams-1/*
+              Fn::Sub: arn:aws:es:${AWS::Region}:${AWS::AccountId}:domain/${ElasticsearchDomainName}/*
       AdvancedOptions:
         rest.action.multi.allow_explicit_index: 'true'
 

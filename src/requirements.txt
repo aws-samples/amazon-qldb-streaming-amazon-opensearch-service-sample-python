@@ -1,0 +1,4 @@
+amazon.ion
+aws-kinesis-agg
+requests_aws4auth
+elasticsearch
