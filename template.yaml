@@ -1,0 +1,231 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Transform: AWS::Serverless-2016-10-31
+Description: >
+  SAM Template for QLDB Streams Elasticsearch Integration Sample Application.
+
+  This template:
+
+  1) Creates a Kinesis Stream
+  2) Creates a Lambda
+  3) Maps lambda to the Kinesis Stream
+  4) Creates RegistrationStreamsKinesisRole which will be used by QLDB to write to Kinesis
+  5) Creates an Elasticsearch Domain
+
+# More info about Globals: https://github.com/awslabs/serverless-application-model/blob/master/docs/globals.rst
+Globals:
+  Function:
+    Timeout: 3
+
+Parameters:
+  ElasticsearchDomainName:
+    Description: Domain name for the elasticsearch endpoint
+    Type: String
+
+Metadata:
+  AWS::ServerlessRepo::Application:
+    Name: amazon-qldb-streaming-elasticsearch-lambda-python
+    Description: This sample demonstrates how to stream insertions into Amazon QLDB to Elasticsearch.
+    SpdxLicenseId: Apache-2.0
+    Labels: ['aws_qldb_sample', 'qldb_streams', 'elasticsearch']
+    HomePageUrl: https://github.com/aws-samples/amazon-qldb-streaming-elasticsearch-lambda-python
+    SemanticVersion: 0.0.1
+    SourceCodeUrl: https://github.com/aws-samples/amazon-qldb-streaming-elasticsearch-lambda-python
+
+Resources:
+
+  KibanaCognitoUserpool:
+    Type: AWS::Cognito::UserPool
+    Properties:
+      AdminCreateUserConfig:
+        AllowAdminCreateUserOnly: true
+      Policies:
+        PasswordPolicy:
+          MinimumLength: 8
+      UserPoolName: registrations_kibana_demo_userpool
+
+  KibanaCognitoIdentitypool:
+    Type: AWS::Cognito::IdentityPool
+    Properties:
+      IdentityPoolName: registrations_kibana_demo_identitypool
+      AllowUnauthenticatedIdentities: true
+
+  KibanaCognitoIdentitypooldomain:
+    Type: AWS::Cognito::UserPoolDomain
+    Properties:
+      Domain: qldbtesting-streams-auth
+      UserPoolId:
+        Ref: KibanaCognitoUserpool
+
+  CognitoAuthUserIAMPolicy:
+    Type: AWS::IAM::Policy
+    Properties:
+      PolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Action:
+              - cognito-identity:*
+            Resource:
+              - "*"
+      PolicyName: kibanacognitoauthuserpolicy
+      Roles:
+        - Ref: CognitoAuthUserIAMRole
+  CognitoAuthUserIAMRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Principal:
+              Federated: cognito-identity.amazonaws.com
+            Action: sts:AssumeRoleWithWebIdentity
+            Condition:
+              StringEquals:
+                cognito-identity.amazonaws.com:aud:
+                  Ref: KibanaCognitoIdentitypool
+              ForAnyValue:StringLike:
+                cognito-identity.amazonaws.com:amr: authenticated
+      RoleName: kibanacognitoauthuserrole
+  CognitoIdentityPoolRoleAttachment:
+    Type: AWS::Cognito::IdentityPoolRoleAttachment
+    Properties:
+      IdentityPoolId:
+        Ref: KibanaCognitoIdentitypool
+      Roles:
+        authenticated:
+          Fn::GetAtt:
+          - CognitoAuthUserIAMRole
+          - Arn
+        unauthenticated:
+          Fn::GetAtt:
+          - CognitoAuthUserIAMRole
+          - Arn
+
+
+  RegistrationIndexerLambdaRole: # Used by lambda to read Kinesis Streams.
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: 2012-10-17
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service:
+                - lambda.amazonaws.com
+                - qldb.amazonaws.com
+            Action:
+              - sts:AssumeRole
+      Path: /
+      ManagedPolicyArns:
+        - arn:aws:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole
+      Policies:
+        - PolicyName: root
+          PolicyDocument:
+            Version: 2012-10-17
+            Statement:
+              - Effect: Allow
+                Action:
+                  - kinesis:ListStreams
+                  - kinesis:DescribeStream
+                  - kinesis:GetRecords
+                  - kinesis:GetShardIterator
+                Resource: !GetAtt RegistrationStreamKinesis.Arn
+              - Effect: Allow
+                Action:
+                  - sqs:SendMessage
+                Resource: !GetAtt RegistrationIndexerFailureQueue.Arn
+
+  RegistrationStreamsKinesisRole: # Used by QLDB to write to Kinesis Streams
+    Type: AWS::IAM::Role
+    Properties:
+      RoleName: RegistrationStreamsKinesisRole
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: qldb.amazonaws.com
+            Action: sts:AssumeRole
+      Policies:
+        - PolicyName: QLDBStreamKinesisPermissions
+          PolicyDocument:
+            Version: 2012-10-17
+            Statement:
+              - Effect: Allow
+                Action:
+                  - kinesis:ListShards
+                  - kinesis:DescribeStream
+                  - kinesis:PutRecord*
+                Resource: !GetAtt RegistrationStreamKinesis.Arn
+
+  RegistrationIndexerLambda:
+    Type: AWS::Serverless::Function # More info about Function Resource: https://github.com/awslabs/serverless-application-model/blob/master/versions/2016-10-31.md#awsserverlessfunction
+    Properties:
+      FunctionName: RegistrationIndexerLambda
+      CodeUri: src
+      Handler: qldb_streaming_to_es_sample.app.lambda_handler
+      Runtime: python3.7
+      Role: !GetAtt RegistrationIndexerLambdaRole.Arn
+      Events:
+        Stream:
+          Type: Kinesis
+          Properties:
+            Stream: !GetAtt RegistrationStreamKinesis.Arn
+            StartingPosition: TRIM_HORIZON
+            MaximumRetryAttempts: 0
+      Environment:
+        Variables:
+          ES_HOST: !GetAtt ElasticsearchDomain.DomainEndpoint
+      DeadLetterQueue:
+        Type: SQS
+        TargetArn: !GetAtt RegistrationIndexerFailureQueue.Arn
+
+  RegistrationStreamKinesis:
+    Type: AWS::Kinesis::Stream
+    Properties:
+      Name: RegistrationStreamKinesis
+      RetentionPeriodHours: 168
+      ShardCount: 1
+
+  RegistrationIndexerFailureQueue:
+    Type: AWS::SQS::Queue
+
+  ElasticsearchDomain:
+    Type: AWS::Elasticsearch::Domain
+    Properties:
+      DomainName: !Ref ElasticsearchDomainName
+      ElasticsearchVersion: '7.1'
+      ElasticsearchClusterConfig:
+        InstanceCount: '1'
+        InstanceType: 't2.small.elasticsearch'
+      EBSOptions:
+        EBSEnabled: 'true'
+        Iops: 0
+        VolumeSize: 10
+        VolumeType: standard
+      SnapshotOptions:
+        AutomatedSnapshotStartHour: '0'
+      AccessPolicies:
+        Version: 2012-10-17
+        Statement:
+          - Effect: Allow
+            Principal:
+              AWS:
+                - !GetAtt RegistrationIndexerLambdaRole.Arn
+                - Fn::Sub: arn:aws:iam::${AWS::AccountId}:root
+                - Fn::GetAtt:
+                  - CognitoAuthUserIAMRole
+                  - Arn
+            Action: es:ESHttp*
+            Resource:
+              Fn::Sub: arn:aws:es:${AWS::Region}:${AWS::AccountId}:domain/tesing-qldb-streams-1/*
+      AdvancedOptions:
+        rest.action.multi.allow_explicit_index: 'true'
+
+Outputs:
+  RegistrationStreamsKinesisRole:
+    Description: "IAM Role for QLDB. Will enable QLDB to write to Kinesis Streams"
+    Value: !GetAtt RegistrationStreamsKinesisRole.Arn
+  DomainEndpoint:
+    Value: !GetAtt ElasticsearchDomain.DomainEndpoint
