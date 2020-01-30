@@ -27,6 +27,24 @@ def person_revision_details_ion_record(revision_version):
 
     return person_revision_details_ion
 
+def person_revision_details_ion_record_for_delete_scenario():
+    person_revision_details_ion = """{
+      recordType: "REVISION_DETAILS",
+      payload: {
+        tableInfo: {
+          tableName: "Person",
+        },
+        revision: {
+          metadata: {
+            version: 2,
+            id: "a8698243bnnmjy"
+          }
+        }
+      }
+    }"""
+
+    return person_revision_details_ion
+
 def vehicle_registration_revision_details_ion_record(revision_version):
     vehicle_registration_revision_details_ion = """{
       recordType: "REVISION_DETAILS",
@@ -123,6 +141,34 @@ def deaggregated_stream_records():
 
     return deaggregated_records
 
+
+@pytest.fixture
+def deaggregated_stream_records_for_delete_scenario():
+    def deaggregated_records(revision_version=0):
+        return [{
+            'kinesis': {
+                'kinesisSchemaVersion': '1.0',
+                'aggregated': True,
+                'data': base64.b64encode(ion.dumps(
+                    ion.loads(person_revision_details_ion_record_for_delete_scenario()))).decode("utf-8")
+            }
+        }, {
+            'kinesis': {
+                'kinesisSchemaVersion': '1.0',
+                'aggregated': True,
+                'data': base64.b64encode(
+                    ion.dumps(ion.loads(person_revision_details_ion_record(revision_version)))).decode("utf-8")
+            }
+        }, {
+            'kinesis': {
+                'kinesisSchemaVersion': '1.0',
+                'aggregated': True,
+                'data': base64.b64encode(
+                    ion.dumps(ion.loads(vehicle_registration_revision_details_ion_record(revision_version)))).decode("utf-8")
+            }
+        }]
+
+    return deaggregated_records
 
 @pytest.fixture
 def elasticsearch_error():

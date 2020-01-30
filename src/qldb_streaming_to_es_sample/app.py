@@ -15,6 +15,8 @@ host = os.environ['ES_HOST']
 
 elasticsearch_client = ElasticsearchClient(host=host, awsauth=awsauth)
 
+TABLE_TO_INDEX_MAP = {Constants.PERSON_TABLENAME : Constants.PERSON_INDEX,
+                   Constants.VEHICLE_REGISTRATION_TABLENAME : Constants.VEHICLE_REGISTRATION_INDEX}
 
 def lambda_handler(event, context):
     """
@@ -31,44 +33,49 @@ def lambda_handler(event, context):
     for record in filtered_records_generator(records,
                                              table_names=[Constants.PERSON_TABLENAME,
                                                           Constants.VEHICLE_REGISTRATION_TABLENAME]):
-
         table_name = record["table_info"]["tableName"]
         revision_data = record["revision_data"]
         revision_metadata = record["revision_metadata"]
         version = revision_metadata["version"]
+        document = None
 
-        # if record is for Person table and is an insert event
-        if (table_name == Constants.PERSON_TABLENAME) and (version == 0):
-            if fields_are_present(Constants.PERSON_TABLE_FIELDS, revision_data):
-                document = create_person_document(revision_data)
-                elasticsearch_client.index(index=Constants.PERSON_INDEX,
+        if revision_data:
+            # if record is for Person table and is an insert event
+            if (table_name == Constants.PERSON_TABLENAME) and (version == 0) and \
+                    __fields_are_present(Constants.PERSON_TABLE_FIELDS, revision_data):
+
+                document = __create_document(Constants.PERSON_TABLE_FIELDS, revision_data)
+                elasticsearch_client.index(index=TABLE_TO_INDEX_MAP[table_name],
                                            id=revision_metadata["id"], body=document, version=version)
 
-        # if record is for VehicleRegistration table and is an insert or update event
-        elif table_name == Constants.VEHICLE_REGISTRATION_TABLENAME:
-            if fields_are_present(Constants.VEHICLE_REGISTRATION_TABLE_FIELDS, revision_data):
-                document = create_vehicle_registration_document(revision_data)
-                elasticsearch_client.index(index=Constants.VEHICLE_REGISTRATION_INDEX,
+            # if record is for VehicleRegistration table and is an insert or update event
+            elif table_name == Constants.VEHICLE_REGISTRATION_TABLENAME and \
+                    __fields_are_present(Constants.VEHICLE_REGISTRATION_TABLE_FIELDS, revision_data):
+                document = __create_document(Constants.VEHICLE_REGISTRATION_TABLE_FIELDS, revision_data)
+                elasticsearch_client.index(index=TABLE_TO_INDEX_MAP[table_name],
                                            id=revision_metadata["id"], body=document, version=version)
+
+        else:
+            # delete record
+            elasticsearch_client.delete(index=TABLE_TO_INDEX_MAP[table_name],
+                                           id=revision_metadata["id"], version=version)
+
+
     return {
         'statusCode': 200
     }
 
 
-def create_person_document(revision_data):
-    return {"FirstName": revision_data["FirstName"],
-            "LastName": revision_data["LastName"],
-            "GovId": revision_data["GovId"]}
+def __create_document(fields, revision_data):
+    document = {}
+
+    for field in fields:
+        document[field] = revision_data[field]
+
+    return document
 
 
-def create_vehicle_registration_document(revision_data):
-    return {"VIN": revision_data["VIN"],
-            "LicensePlateNumber": revision_data["LicensePlateNumber"],
-            "State": revision_data["State"],
-            "PendingPenaltyTicketAmount": revision_data["PendingPenaltyTicketAmount"]}
-
-
-def fields_are_present(fields_list, revision_data):
+def __fields_are_present(fields_list, revision_data):
     for field in fields_list:
         if not field in revision_data:
             return False
