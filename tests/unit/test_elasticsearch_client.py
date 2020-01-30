@@ -29,7 +29,7 @@ def test_indexing():
                           version=1,version_type='external')
 
 
-def test_bad_input_exceptions_are_handled(elasticsearch_error):
+def test_bad_input_exceptions_are_handled_for_indexing(elasticsearch_error):
 
     for error_class in TestConstants.EXCEPTIONS_THAT_SHOULD_BE_HANDLED:
         error = elasticsearch_error(error_class)
@@ -40,6 +40,38 @@ def test_bad_input_exceptions_are_handled(elasticsearch_error):
         # Trigger
         response = elasticsearch_client.index(body=TestConstants.PERSON_DATA, version=1,
                                               index=Constants.PERSON_INDEX, id=TestConstants.PERSON_DATA["GovId"])
+
+
+        # Verify
+        assert response == None
+
+
+def test_deletion():
+
+    # Mock
+    elasticsearch_client.es_client.delete = MagicMock(return_value={"status":"success"})
+
+    # Trigger
+    response= elasticsearch_client.delete(version=1,
+                                         index = Constants.PERSON_INDEX, id = TestConstants.PERSON_DATA["GovId"])
+
+    # Verify
+    elasticsearch_client.es_client.delete.assert_called_once_with(id=TestConstants.PERSON_DATA["GovId"],
+                          index=Constants.PERSON_INDEX,
+                          version=1,version_type='external')
+
+
+def test_bad_input_exceptions_are_handled_for_deletion(elasticsearch_error):
+
+    for error_class in TestConstants.EXCEPTIONS_THAT_SHOULD_BE_HANDLED:
+        error = elasticsearch_error(error_class)
+
+        # Mock
+        elasticsearch_client.es_client.delete = MagicMock(side_effect=[error, None])
+
+        # Trigger
+        response = elasticsearch_client.delete(version=1, index=Constants.PERSON_INDEX,
+                                               id=TestConstants.PERSON_DATA["GovId"])
 
 
         # Verify

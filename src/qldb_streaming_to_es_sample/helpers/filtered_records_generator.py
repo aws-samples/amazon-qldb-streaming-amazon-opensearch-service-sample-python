@@ -37,6 +37,8 @@ def get_data_metdata_from_revision_record(revision_record):
     if ("payload" in revision_record) and ("revision" in revision_record["payload"]):
         if "data" in revision_record["payload"]["revision"]:
             revision_data = revision_record["payload"]["revision"]["data"]
+        else:
+            revision_data = None
         if "metadata" in revision_record["payload"]["revision"]:
             revision_metadata = revision_record["payload"]["revision"]["metadata"]
 

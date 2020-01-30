@@ -70,6 +70,24 @@ Resources:
       PolicyName: kibanacognitoauthuserpolicy
       Roles:
         - Ref: CognitoAuthUserIAMRole
+
+  # Create a role for ES access Cognito
+  SampleCognitoAccessForAmazonES:
+    Type: "AWS::IAM::Role"
+    Properties:
+      RoleName: "SampleCognitoAccessForAmazonES"
+      AssumeRolePolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Effect: "Allow"
+            Principal:
+              Service:
+                - "es.amazonaws.com"
+            Action:
+              - "sts:AssumeRole"
+      ManagedPolicyArns:
+        - "arn:aws:iam::aws:policy/AmazonESCognitoAccess"
+
   CognitoAuthUserIAMRole:
     Type: AWS::IAM::Role
     Properties:
@@ -136,6 +154,36 @@ Resources:
                   - sqs:SendMessage
                 Resource: !GetAtt RegistrationIndexerFailureQueue.Arn
 
+  ProvisioningLambdaRole: # Used by Custom Resource Lambda to create settings for Elasticsearch Index
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: 2012-10-17
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service:
+                - lambda.amazonaws.com
+            Action:
+              - sts:AssumeRole
+      Path: /
+      ManagedPolicyArns:
+        - arn:aws:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole
+      Policies:
+        - PolicyName: root
+          PolicyDocument:
+            Version: 2012-10-17
+            Statement:
+              - Effect: Allow
+                Action: es:UpdateElasticsearchDomainConfig
+                Resource:
+                  Fn::Sub: arn:aws:es:${AWS::Region}:${AWS::AccountId}:domain/${ElasticsearchDomainName}
+              - Effect: Allow
+                Action: iam:PassRole
+                Resource:
+                  !GetAtt SampleCognitoAccessForAmazonES.Arn
+
+
   RegistrationStreamsKinesisRole: # Used by QLDB to write to Kinesis Streams
     Type: AWS::IAM::Role
     Properties:
@@ -182,6 +230,25 @@ Resources:
         Type: SQS
         TargetArn: !GetAtt RegistrationIndexerFailureQueue.Arn
 
+
+  ProvisioningLambda:
+    Type: AWS::Serverless::Function # More info about Function Resource: https://github.com/awslabs/serverless-application-model/blob/master/versions/2016-10-31.md#awsserverlessfunction
+    Properties:
+      FunctionName: ElasticsearchSampleProvisioningLambda
+      CodeUri: setup
+      Handler: provisioning_lambda.lambda_handler
+      Runtime: python3.7
+      Timeout: 180
+      Role: !GetAtt ProvisioningLambdaRole.Arn
+      Environment:
+        Variables:
+          ES_HOST: !GetAtt ElasticsearchDomain.DomainEndpoint
+          USER_POOL_ID: !Ref KibanaCognitoUserpool
+          IDENTITY_POOL_ID: !Ref KibanaCognitoIdentitypool
+          ES_DOMAIN_NAME: !Ref ElasticsearchDomainName
+          ROLE: !GetAtt SampleCognitoAccessForAmazonES.Arn
+
+
   RegistrationStreamKinesis:
     Type: AWS::Kinesis::Stream
     Properties:
@@ -214,6 +281,7 @@ Resources:
             Principal:
               AWS:
                 - !GetAtt RegistrationIndexerLambdaRole.Arn
+                - !GetAtt ProvisioningLambdaRole.Arn # The Provisioning Lambda needs permissions to create indexes on Elasticsearch
                 - Fn::Sub: arn:aws:iam::${AWS::AccountId}:root
                 - Fn::GetAtt:
                   - CognitoAuthUserIAMRole
@@ -224,9 +292,18 @@ Resources:
       AdvancedOptions:
         rest.action.multi.allow_explicit_index: 'true'
 
+  ElasticsearchSetupResource:
+    Type: "Custom::Setup"
+    Properties:
+      ServiceToken: !GetAtt ProvisioningLambda.Arn
+    DependsOn: ElasticsearchDomain
+
 Outputs:
   RegistrationStreamsKinesisRole:
     Description: "IAM Role for QLDB. Will enable QLDB to write to Kinesis Streams"
     Value: !GetAtt RegistrationStreamsKinesisRole.Arn
   DomainEndpoint:
     Value: !GetAtt ElasticsearchDomain.DomainEndpoint
+  KibanaEndpoint:
+    Value:
+      Fn::Sub: https://${ElasticsearchDomain.DomainEndpoint}/_plugin/kibana
