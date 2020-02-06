@@ -55,7 +55,7 @@ It is required that you clone this repository. The project consists of two main 
 
 ##### 1. Create a ledger named `vehicle-registration`
   
-	Please Follow the steps listed [here](https://docs.aws.amazon.com/qldb/latest/developerguide/getting-started-step-1.html) to create a new Ledger.
+Please Follow the steps listed [here](https://docs.aws.amazon.com/qldb/latest/developerguide/getting-started-step-1.html) to create a new Ledger.
      
 
 

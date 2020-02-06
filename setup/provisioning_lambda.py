@@ -1,3 +1,18 @@
+# Copyright 2020 Amazon.com, Inc. or its affiliates. All Rights Reserved.
+# SPDX-License-Identifier: MIT-0
+#
+# Permission is hereby granted, free of charge, to any person obtaining a copy of this
+# software and associated documentation files (the "Software"), to deal in the Software
+# without restriction, including without limitation the rights to use, copy, modify,
+# merge, publish, distribute, sublicense, and/or sell copies of the Software, and to
+# permit persons to whom the Software is furnished to do so.
+#
+# THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLIED,
+# INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY, FITNESS FOR A
+# PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT
+# HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION
+# OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE
+# SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 from __future__ import print_function
 from crhelper import CfnResource
 import logging
@@ -13,16 +28,9 @@ helper = CfnResource(json_logging=False, log_level='DEBUG', boto_level='CRITICAL
 service = 'es'
 INDEXES = ["person_index", "vehicle_registration_index"]
 es = None
-es_boto = None
 
 try:
     host = os.environ['ES_HOST']
-    user_pool_id = os.environ['USER_POOL_ID']
-    identity_pool_id = os.environ['IDENTITY_POOL_ID']
-    es_domain_name = os.environ['ES_DOMAIN_NAME']
-    role_arn = os.environ['ROLE']
-
-    es_boto = boto3.client('es')
     session = boto3.Session()
     credentials = session.get_credentials()
     region = session.region_name
@@ -46,11 +54,6 @@ def create(event, context):
     logger.info("Initiating index creation")
     helper.Data.update({"Status": "Initiated"})
 
-    es_boto.update_elasticsearch_domain_config(DomainName=es_domain_name, CognitoOptions={'Enabled': True,
-                                                                                          'UserPoolId': user_pool_id,
-                                                                                          'IdentityPoolId': identity_pool_id,
-                                                                                          'RoleArn': role_arn})
-
     for index in INDEXES:
         try:
             es.indices.create(index=index, body={'settings': {'index': {'gc_deletes': '1d'}}})
@@ -59,6 +62,18 @@ def create(event, context):
                 es.indices.put_settings(index=index, body={'gc_deletes': '1d'})
             else:
                 raise e
+
+
+@helper.update
+def update(event, context):
+    # no op
+    pass
+
+
+@helper.delete
+def delete(event, context):
+    # no op
+    pass
 
 
 def lambda_handler(event, context):

@@ -52,7 +52,8 @@ Resources:
   KibanaCognitoIdentitypooldomain:
     Type: AWS::Cognito::UserPoolDomain
     Properties:
-      Domain: qldbtesting-streams-auth
+      Domain:
+        Fn::Sub: ${ElasticsearchDomainName}
       UserPoolId:
         Ref: KibanaCognitoUserpool
 
@@ -113,12 +114,12 @@ Resources:
       Roles:
         authenticated:
           Fn::GetAtt:
-          - CognitoAuthUserIAMRole
-          - Arn
+            - CognitoAuthUserIAMRole
+            - Arn
         unauthenticated:
           Fn::GetAtt:
-          - CognitoAuthUserIAMRole
-          - Arn
+            - CognitoAuthUserIAMRole
+            - Arn
 
 
   RegistrationIndexerLambdaRole: # Used by lambda to read Kinesis Streams.
@@ -180,8 +181,7 @@ Resources:
                   Fn::Sub: arn:aws:es:${AWS::Region}:${AWS::AccountId}:domain/${ElasticsearchDomainName}
               - Effect: Allow
                 Action: iam:PassRole
-                Resource:
-                  !GetAtt SampleCognitoAccessForAmazonES.Arn
+                Resource: !GetAtt SampleCognitoAccessForAmazonES.Arn
 
 
   RegistrationStreamsKinesisRole: # Used by QLDB to write to Kinesis Streams
@@ -243,11 +243,6 @@ Resources:
       Environment:
         Variables:
           ES_HOST: !GetAtt ElasticsearchDomain.DomainEndpoint
-          USER_POOL_ID: !Ref KibanaCognitoUserpool
-          IDENTITY_POOL_ID: !Ref KibanaCognitoIdentitypool
-          ES_DOMAIN_NAME: !Ref ElasticsearchDomainName
-          ROLE: !GetAtt SampleCognitoAccessForAmazonES.Arn
-
 
   RegistrationStreamKinesis:
     Type: AWS::Kinesis::Stream
@@ -264,6 +259,11 @@ Resources:
     Properties:
       DomainName: !Ref ElasticsearchDomainName
       ElasticsearchVersion: '7.1'
+      CognitoOptions:
+        Enabled: True
+        IdentityPoolId: !Ref KibanaCognitoIdentitypool
+        RoleArn: !GetAtt SampleCognitoAccessForAmazonES.Arn
+        UserPoolId: !Ref KibanaCognitoUserpool
       ElasticsearchClusterConfig:
         InstanceCount: '1'
         InstanceType: 't2.small.elasticsearch'
@@ -284,8 +284,8 @@ Resources:
                 - !GetAtt ProvisioningLambdaRole.Arn # The Provisioning Lambda needs permissions to create indexes on Elasticsearch
                 - Fn::Sub: arn:aws:iam::${AWS::AccountId}:root
                 - Fn::GetAtt:
-                  - CognitoAuthUserIAMRole
-                  - Arn
+                    - CognitoAuthUserIAMRole
+                    - Arn
             Action: es:ESHttp*
             Resource:
               Fn::Sub: arn:aws:es:${AWS::Region}:${AWS::AccountId}:domain/${ElasticsearchDomainName}/*
