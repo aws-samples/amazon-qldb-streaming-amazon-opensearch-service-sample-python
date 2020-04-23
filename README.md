@@ -40,11 +40,11 @@ The Sample demonstrates how you can replicate your documents in Amazon QLDB to A
 
 SAM requires an S3 bucket to host the source code for lambda function. We will be using the AWS CLI for creating the bucket. Please read [AWS CLI Configuration](https://docs.aws.amazon.com/cli/latest/userguide/cli-chap-configure.html#cli-quick-configuration) for help on how to configure the CLI. 
 
-### Python 3.x
+### Python 3.4 or above
 
-The examples require Python 3.x. Please see the link below for more detail to install Python 3.x:
+The examples require Python 3.4 or above. Please see the link below for more detail to install Python:
 
-* [Python 3.x Installation](https://www.python.org/downloads/)
+* [Python Installation](https://www.python.org/downloads/)
 
 ## Setting up the Sample
 
@@ -154,9 +154,7 @@ The Deployment will create a Cloudformation Stack with name you specify in the d
 
 ##### 10. Follow these [steps](https://docs.aws.amazon.com/qldb/latest/developerguide/getting-started-step-2.html) to load Sample Data into the ledger.
   
-##### 11. Create index pattern on kibana - `person_index`, `vehicle_index`
-  
-    Check [here](https://www.elastic.co/guide/en/kibana/current/tutorial-define-index.html) on how to create index patterns on Kibana.
+##### 11. Create index pattern on kibana - `person_index`, `vehicle_index`. Check [here](https://www.elastic.co/guide/en/kibana/current/tutorial-define-index.html) on how to create index patterns on Kibana.
     
 You should see some documents for `person_index` and `vehicle_index`.    
     
