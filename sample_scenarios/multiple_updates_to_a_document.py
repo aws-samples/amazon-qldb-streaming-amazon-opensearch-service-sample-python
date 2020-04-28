@@ -25,21 +25,20 @@ basicConfig(level=INFO)
 
 
 def update_documents(transaction_executor):
-    logger.info('Updating some documents multiple times in the {} table...'). \
-        format(Constants.VEHICLE_REGISTRATION_TABLE_NAME)
+    logger.info('Updating some documents multiple times in the {} table...'
+                .format(Constants.VEHICLE_REGISTRATION_TABLE_NAME))
+
 
     for license_number, pending_amounts in SampleData.PENDING_AMOUNT_VALUES_FOR_MULTIPLE_UPDATES.items():
 
         for pending_amount in pending_amounts:
-            statement = 'UPDATE {table_name} SET PendingPenaltyTicketAmount ' \
-                        '= {amount} WHERE LicensePlateNumber = \'{license_number}\'' \
-                .format(license_number=license_number, amount=pending_amount,
-                        table_name=Constants.VEHICLE_REGISTRATION_TABLE_NAME)
+            statement = 'UPDATE {table_name} SET PendingPenaltyTicketAmount = ? WHERE LicensePlateNumber = ?' \
+                .format(table_name=Constants.VEHICLE_REGISTRATION_TABLE_NAME)
 
             logger.info('Updating PendingPenaltyTicketAmount for License Number: {license_number}'
                         ' to {amount}'.format(license_number=license_number, amount=pending_amount))
 
-            transaction_executor.execute_statement(statement)
+            transaction_executor.execute_statement(statement, pending_amount, license_number)
 
 
 if __name__ == '__main__':
