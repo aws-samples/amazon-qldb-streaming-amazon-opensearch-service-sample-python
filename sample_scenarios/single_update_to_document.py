@@ -26,14 +26,12 @@ def update_documents(transaction_executor):
     logger.info('Updating some documents in the VehicleRegistration table...')
 
     for license_number, pending_amount in SampleData.PENDING_AMOUNT_VALUES_SINGLE_UPDATE.items():
-        statement = 'UPDATE VehicleRegistration SET PendingPenaltyTicketAmount ' \
-                    '= {amount} WHERE LicensePlateNumber = \'{license_number}\'' \
-            .format(license_number=license_number, amount=pending_amount)
+        statement = 'UPDATE VehicleRegistration SET PendingPenaltyTicketAmount = ? WHERE LicensePlateNumber = ?'
 
         logger.info('Updating PendingPenaltyTicketAmount for License Number: {license_number}'
                     ' to {amount}'.format(license_number=license_number, amount=pending_amount))
 
-        transaction_executor.execute_statement(statement)
+        transaction_executor.execute_statement(statement, pending_amount, license_number)
 
 
 if __name__ == '__main__':

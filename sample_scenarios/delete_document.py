@@ -30,14 +30,13 @@ def delete_documents(transaction_executor):
 
     for vehicle_registration in SampleData.VEHICLE_REGISTRATION:
         statement = 'DELETE FROM {table_name} AS r \
-                     WHERE r.LicensePlateNumber = \'{license_number}\'' \
-            .format(license_number=vehicle_registration["LicensePlateNumber"],
-                    table_name=Constants.VEHICLE_REGISTRATION_TABLE_NAME)
+                     WHERE r.LicensePlateNumber = ?' \
+            .format(table_name=Constants.VEHICLE_REGISTRATION_TABLE_NAME)
 
         logger.info('Deleting record from VehicleRegistration with License Number: {license_number}'
                     .format(license_number=vehicle_registration["LicensePlateNumber"]))
 
-        transaction_executor.execute_statement(statement)
+        transaction_executor.execute_statement(statement, vehicle_registration["LicensePlateNumber"])
 
 
 if __name__ == '__main__':

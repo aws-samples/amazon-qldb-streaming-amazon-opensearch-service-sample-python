@@ -40,7 +40,7 @@ def update_person_id(document_ids):
 def insert_documents(transaction_executor, table_name, documents):
     logger.info('Inserting some documents in the {} table...'.format(table_name))
     statement = 'INSERT INTO {} ?'.format(table_name)
-    cursor = transaction_executor.execute_statement(statement, [convert_object_to_ion(documents)])
+    cursor = transaction_executor.execute_statement(statement, convert_object_to_ion(documents))
     list_of_document_ids = get_document_ids_from_dml_results(cursor)
 
     return list_of_document_ids
