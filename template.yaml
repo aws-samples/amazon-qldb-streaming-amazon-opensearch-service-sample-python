@@ -250,9 +250,14 @@ Resources:
       Name: RegistrationStreamKinesis
       RetentionPeriodHours: 168
       ShardCount: 1
+      StreamEncryption:
+        EncryptionType: KMS
+        KeyId: alias/aws/kinesis
 
   RegistrationIndexerFailureQueue:
     Type: AWS::SQS::Queue
+    Properties:
+      KmsMasterKeyId: alias/aws/sqs
 
   ElasticsearchDomain:
     Type: AWS::Elasticsearch::Domain
